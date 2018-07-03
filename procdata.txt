@@ -1,0 +1,261 @@
+from __future__ import division
+import cPickle as pickle
+import cv2
+import os
+import torch
+import torch.nn.functional as F
+import matplotlib
+import torch.nn as nn
+import math
+import time
+import numpy as np
+import torchvision.transforms as transforms
+class Net(torch.nn.Module):
+	def __init__(self):
+		super(Net, self).__init__()
+		def conv_bn(inp, oup, stride):
+			return nn.Sequential(
+			nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
+			nn.BatchNorm2d(oup),
+			nn.ReLU(inplace=True)
+			)
+		def conv_dw(inp, oup, stride):
+			return nn.Sequential(
+			nn.Conv2d(inp, inp, 3, stride, 1, groups=inp, bias=False),
+			nn.BatchNorm2d(inp),
+			nn.ReLU(inplace=True),
+			nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
+			nn.BatchNorm2d(oup),
+			nn.ReLU(inplace=True),
+			)
+		self.model = nn.Sequential(
+			conv_bn(  3,  32, 2), 
+			conv_dw( 32,  64, 1),
+			conv_dw( 64, 128, 2),
+			conv_dw(128, 128, 1),
+			conv_dw(128, 256, 2),
+			conv_dw(256, 256, 1),
+			conv_dw(256, 512, 2),
+			conv_dw(512, 512, 1),
+			conv_dw(512, 512, 1),
+			conv_dw(512, 512, 1),
+			conv_dw(512, 512, 1),
+			conv_dw(512, 512, 1),
+			conv_dw(512, 1024, 2),
+			conv_dw(1024, 1024, 1),
+			nn.AvgPool2d(7),
+			)
+		#self.fc = nn.Linear(1024, 1000)
+		self.hidden = torch.nn.Linear(1024, 138)   # hidden layer
+		# self.hidden1 = torch.nn.Linear(550,275)
+		# self.hidden2 = torch.nn.Linear(275,138)
+		self.predict = torch.nn.Linear(138,72)
+	def forward(self, x):
+		x1 = self.model(x)
+		x1 = x1.view(-1, 1024)
+		# x1 = x1
+		#x = self.fc(x)
+		x1 = F.relu(self.hidden(x1))      # activation function for hidden layer
+		# x1 = F.relu(self.hidden1(x1))
+		# x1 = F.relu(self.hidden2(x1))
+		x1 = self.predict(x1)
+		return x1
+
+def train(inputs,outputs,model,criterion,optimizer,epoch):
+	model.train()
+	#optimizer.zero_grad()
+	i=0
+	count=0
+	tic=time.time()
+	for e in range(epoch):
+		running_loss = 0.0
+		tic=time.time()
+		for i in range(len(inputs)):
+			path=inputs[i]
+			image=cv2.imread(path)
+			height, width, _ = image.shape
+			image=cv2.resize(image,(224,224))
+			image=np.array(image).reshape((3,224,224))
+			image=torch.Tensor(image)
+			image=image.unsqueeze(0)
+			input=image.cuda()
+			target=[]
+			#print outputs[i]
+			j=0
+			while j<len(outputs[i]):
+				target.append((outputs[i][j]/width)*224)
+				j=j+1
+				target.append((outputs[i][j]/height)*224)
+				j=j+1
+			target=torch.Tensor(target)
+			target=target.cuda(async=True)
+			input_var = torch.autograd.Variable(input)
+			target_var = torch.autograd.Variable(target)
+			#print path,input.size,target_var
+			out = model(input_var)
+			# print out,out.shape,target_var,target_var.shape
+			loss = criterion(out, target_var)
+			#print loss
+			optimizer.zero_grad()
+			loss.backward()
+			optimizer.step()
+			if math.isnan(loss.data[0]):
+				print 'nan'
+				return
+			running_loss += loss.data[0]
+			if i % 1000 == 999:    # print every 1000 mini-batches
+				print '[%d, %5d] loss: %.3f' %(e + 1, i + 1, running_loss / 1000)
+				running_loss = 0.0
+				#print out.data,target.data
+				# for o in range(len(out.data)):
+				# 	print target.data[o],out.data[o]
+		toc=time.time()
+		print toc-tic
+	print 'Finished Training'
+
+def val(inputs,outputs,model,criterion):
+	model.eval()
+	running_loss=0.0
+	for i in range(len(inputs)):
+		path=inputs[i]
+		image=cv2.imread(path)
+		height, width, _ = image.shape
+		image=cv2.resize(image,(224,224))
+		image=np.array(image).reshape((3,224,224))
+		image=torch.Tensor(image)
+		image=image.unsqueeze(0)
+		input=image.cuda()
+		target=[]
+		j=0
+		while j<len(outputs[i]):
+			target.append((outputs[i][j]/width)*224)
+			j=j+1
+			target.append((outputs[i][j]/height)*224)
+			j=j+1
+		target=torch.Tensor(target)
+		target=target.cuda(async=True)
+		input_var = torch.autograd.Variable(input)
+		target_var = torch.autograd.Variable(target)
+		out = model(input_var)
+		#print out,out.shape,target_var,target_var.shape
+		loss = criterion(out, target_var)
+		pred=np.array(out.data[0])
+		#print pred
+		draw(pred,path,outputs[i],i)
+		if math.isnan(loss.data[0]):
+			print 'nan'
+			return
+		running_loss += loss.data[0]
+		if i % 100 == 99:    # print every 100 mini-batches
+			print '[%5d] loss: %.3f' %(i + 1, running_loss / i)
+			#print target_var,out
+	print running_loss	
+	print 'finished validating'
+
+def draw(out,path,outputs,count):
+	l=[]
+	canvas = cv2.imread(path)
+	height, width, _ = canvas.shape
+	print out,outputs
+	for k in range(len(out)-1):
+		l.append(int(out[k]*width/224))
+		l.append(int(out[k+1]*height/224))
+		k=k+1
+	l1=[]
+	l2=[]
+	k=0
+	while k<36:
+		l1.append([l[k],l[k+1]])
+		k=k+2
+	while k<72:
+		l2.append([l[k],l[k+1]])
+		k=k+2
+	ll=[]
+	k=0
+	while k<72:
+		ll.append(int(outputs[k]*width/224))
+		ll.append(int(outputs[k+1]*height/224))
+		k=k+2
+	l3=[]
+	l4=[]
+	k=0
+	while k<36:
+		l3.append([ll[k],ll[k+1]])
+		k=k+2
+	while k<72:
+		l4.append([ll[k],ll[k+1]])
+		k=k+2	
+	
+	#canvas=cv2.resize(canvas,(224,224))
+	for k in range(len(l1)):
+		cv2.circle(canvas, (l1[k][0],l1[k][1]), 2, (255,0,0), thickness=-1)
+	for k in range(len(l3)):
+		cv2.circle(canvas, (l3[k][0],l3[k][1]), 2, (0,255,0), thickness=-1)
+	stickwidth = 1
+	for k in range(18):
+		cur_canvas = canvas.copy()
+		y1=l2[k][0]*0.1+l1[k][0]
+		x1=l2[k][1]*0.1+l1[k][1]
+		y0=l1[k][0]
+		x0=l1[k][1]
+		Y=[y1,y0]
+		X=[x1,x0]
+		mX = np.mean(X)
+		mY = np.mean(Y)
+		length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+		angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
+		polygon = cv2.ellipse2Poly((int(mY),int(mX)), (int(length/2), stickwidth), int(angle), 0, 360, 1)
+		cv2.fillConvexPoly(cur_canvas, polygon, (225,0,0))
+		canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+	for k in range(18):
+		cur_canvas = canvas.copy()
+		y1=l4[k][0]*0.1+l3[k][0]
+		x1=l4[k][1]*0.1+l3[k][1]
+		y0=l3[k][0]
+		x0=l3[k][1]
+		Y=[y1,y0]
+		X=[x1,x0]
+		mX = np.mean(X)
+		mY = np.mean(Y)
+		length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+		angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
+		polygon = cv2.ellipse2Poly((int(mY),int(mX)), (int(length/2), stickwidth), int(angle), 0, 360, 1)
+		cv2.fillConvexPoly(cur_canvas, polygon, (0,225,0))
+		canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+	cv2.imwrite('./newframes/'+str(count)+'.jpg',canvas)
+
+data=[]
+import csv
+with open('newdata.csv') as csvfile:
+    readCSV = csv.reader(csvfile, delimiter=',')
+    for row in readCSV:
+        data.append(row)
+x=[]
+y=[]
+for i in range(len(data)):
+	x.append(data[i][1])
+	t=[]
+	for j in range(2,len(data[i])-1):
+		t.append(float(data[i][j]))
+	y.append(t)
+		
+import random
+a=list(zip(x,y))
+random.shuffle(a)
+x[:],y[:]=zip(*a)
+traindata=x[:9000]
+trainann=y[:9000]
+valdata=x[9000:]
+valann=y[9000:]
+print 'data-processing completed'
+net=Net().cuda()
+print net
+criterion = nn.MSELoss().cuda()
+optimizer = torch.optim.SGD(net.parameters(), lr=0.001,weight_decay=10)
+#traindata=torch.Tensor(traindata.astype(float))
+#trainann=torch.Tensor(trainann)
+#valdata=torch.Tensor(valdata.astype(float))
+#valann=torch.Tensor(valann)
+train(traindata,trainann,net,criterion,optimizer,3)
+val(valdata,valann,net,criterion)
+

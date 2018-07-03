@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css"> 
+<style>
+
+.ghost-button {
+  display: inline-block;
+  width: 150px;
+  padding:.2cm;
+  color: black;
+  
+  
+  text-align: center;
+  outline: none;
+  text-decoration: none;
+  transition: background-color 0.2s ease-out,
+              border-color 0.2s ease-out;
+}
+.ghost-button:hover{ 
+  background-color: rgba(40,31,36, 0.8);
+  color:white;
+  border-color: rgba(255, 255, 255, 0.4);
+  transition: background-color 0.5s ease-in,
+              border-color 0.5s ease-in;}
+.ghost-button:active {background-color: #9363c4;
+  border-color: #9363c4;
+  color: #fff;
+  transition: color 0.3s ease-in,
+              background-color 0.3s ease-in,
+              border-color 0.3s ease-in;
+ }
+
+
+header, footer {
+    
+    padding-bottom: 0.05cm;
+    padding-top: 0.05cm;
+    color: rgb(229,220,220);
+   
+    background-color: rgba(200, 200, 200, 0.5);
+    text-align: left;
+   }
+body{background:transparent url("f0.jpeg"); 
+     height: auto;
+     width: auto;
+    margin: none;
+}
+h1{
+font-family: Arial Rounded MT Bold,Helvetica Rounded,Arial,sans-serif;
+font-size:30px;
+font-weight: 350;
+text-align: left;
+color: white;
+background-color: rgba(40,31,36, 0.8);
+padding: 0.2cm;}
+a{font-family: Arial Rounded MT Bold,Helvetica Rounded,Arial,sans-serif;
+font-size:20px;
+font-weight:350;
+float:right;}
+.intro{
+text-align:center;
+font-size:25px;
+font-family:Courier New, monospace;
+font-weight:700;
+}
+ /* Three image containers (use 25% for four, and 50% for two, etc) */
+.column {
+  float: left;
+  width: 32%;
+  padding: 5px;
+}
+
+/* Clear floats after image containers */
+.row::after {
+  content: "";
+  clear: both;
+  display: table;
+} 
+</style>
+</head>
+<body>
+<title>
+  Human pose Dataset
+</title>
+<h1 style="margin: 0">
+  2D Human Pose Dataset
+</h1>
+<div class="w3-bar w3-grey">
+  <a href="contact.html" class="ghost-button">Contact Us</a>
+  <a href="code.html" class="ghost-button">Code</a>
+  <a href="dataset.html" class="ghost-button">Dataset</a>
+  <a href="intro.html" class="ghost-button" style="float:left;">Home</a>
+</div>
+<br>
+<br>
+<br>
+<br>
+<article> <div class="row">
+  <div class="column">
+    <img src="f0.jpeg" alt="Snow" style="width:100%">
+  </div>
+  <div class="column">
+    <img src="f1.jpeg" alt="Forest" style="width:100%">
+  </div>
+  <div class="column">
+    <img src="j2.jpeg" alt="Forest" style="width:100%">
+  </div>
+</div> 
+</article>
+</body>
+</html>
